@@ -120,7 +120,7 @@ Private files
 ### Listing
 
 ```php
-$mega = MEGA::create_from_user($email, $password);
+$mega = MEGA::create_from_login($email, $password);
 
 $files = $mega->node_list();
 print_r($files);
