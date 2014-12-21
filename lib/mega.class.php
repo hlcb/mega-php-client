@@ -937,7 +937,7 @@ class MEGA {
 	 *
 	 */
 	protected function http_do_request($url, $payload) {
-		return '[{"csid":"CABHCuXgcHHXVhEyBHD5_mqECIYmmX-OQ8Me2KjDLyf2PtrREuId4Cd8B-KjflOpQ80eThGRM4kabnH4ut2l5AMtLk4MMMpsEIT_yxzeXqIw4uruV4lRajDEBOAIzbXm54B7loLK0CP1X1jlESlHmF0iVPpky12_IbtwXx48O1tf2gvzWrGOsKSmNclM6HQ_AIIYwvYaXHkuStqtVT4zFsay0Q33JmZmLJ90sfGgBF3SCnCwGuSTcJvAcx1OPIjoy5QPrNw_6K_vAiWR96rntdAa71DGz7-NfCElayCWQWI2psTWV-NASJ0KNFrGtukVTKQCaCQFIGg7IDVtexQyMEGl","privk":"ZRy0Z7TQ-v9Djy_degUWR7UM2cmuQBIOaDOmMQXloC_MdyeVxtl9AQflEI6VdWd1aMN3q8YBNv4NRoNpWXYL5tJ0e1qGfcVAcoh__U4ge87osLg1qyj9_CiTpwX_810oPSS6M8WpwT1EEVa1e7kO4QTCMgAx4EpfttfpM6udey9xQH1RQmBq2diNTz97nII7Vg1k0T_8oW4RCoVKlf8VgDP97EeM5WEmNPFcrpJVFDownfjttw2MdrVHTVGQiI1KhG-NJ7pDzlvnh13q4Keo8BhzJdo0Cos2umN4Ld8LpG-0ZJ5Htgn-9roYQsoXpG39LzRsLLi9ipqambL47zQx9RFFjeh6HmGYgtCdxQY606xOax1YOaS0G02S2EBpIcgKa8x6Dv0m3b0BndNkvWusNLyctbxXVTzI0B9ocWTM7HDQdSQZXJZqOIMOYpeQ12gDzixPovkPdIEg5jQzNvPJGen6E37ZTlOzIArZeud8GDT8f7lR0SCGudm1sMklIQCH8SKgs3g1Bd3bulW5iPQu16qCjLwZw0yf6wf6GHqp7LdoIP-vgCp8d0z-1NCiIOykcik8j2jD6J5emQ-7pm4Jva8atrWR1Lbcg96z6L3mAjrgzHULuwORibI77Nhu_GYWDuiveorJ0YOWGhV6jdN1GPqQVHSn9EzUTTZguuKqiR3etlADRah9h90kSCHw5ERq8SAHTNRww_bai40vL_w2e-7o8x_vcJRx_qaMLWLbeoUvmqj1odl19KGxy7Yukte-GDddZR7OYwh6k81o9DvHfDclBmEqO8Cfu0Bk2sqGQcgEcAIG7vS6xcDuwn7Re6_d7d3FcbNgErq148TnvSAQQG300PsuZlPqfJu-KzD5tXc","k":"oe49Ibkwm2EXRatUKOPTAA","u":"gTxFhlOd_LQ"}]';
+
 		//$url = ($this->ssl ? 'https' : 'http') . '://' . $this->endpoint . '/cs?id=' . $this->sequence_number;
 
 		$curl_handle = curl_init();
