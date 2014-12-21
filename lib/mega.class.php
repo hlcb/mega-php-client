@@ -727,8 +727,8 @@ class MEGA {
 						$privk = substr( $privk, $l );
 					}
 
-					$t = MEGAUtil::base64urldecode($res['csid']);
-					$t = MEGAUtil::mpi2b($t);
+					$t = MEGAUtil::base64urldecode( $res['csid'] );
+					$t = MEGAUtil::mpi2b( $t );
 
 					$sid = MEGARsa::rsa_decrypt( $t, $rsa_privk[0], $rsa_privk[1], $rsa_privk[2] );
 					$sid = MEGAUtil::base64urlencode( substr( strrev( $sid ), 0, 43 ) );
@@ -938,6 +938,10 @@ class MEGA {
 	 */
 	protected function http_do_request($url, $payload) {
 
+		if ( MEGACache::has_cache_file( __METHOD__, $payload, $_file ) ) {
+			return MEGACache::load_cache_file( __METHOD__, $_file );
+		}
+
 		//$url = ($this->ssl ? 'https' : 'http') . '://' . $this->endpoint . '/cs?id=' . $this->sequence_number;
 
 		$curl_handle = curl_init();
@@ -963,6 +967,8 @@ class MEGA {
 		//print "Status: $status\n";
 
 		curl_close($curl_handle);
+
+		MEGACache::save_cache_file( __METHOD__, $_file, $content );
 
 		return $content;
 	}
@@ -1169,7 +1175,7 @@ class MEGACrypto {
 	}
 
 	// AES encrypt in CBC mode (zero IV)
-	public static function encrypt_aes_cbc($key, $data) {
+	public static function encrypt_aes_cbc( $key, $data ) {
 		$iv = str_repeat( "\0", mcrypt_get_iv_size( MCRYPT_RIJNDAEL_128, MCRYPT_MODE_CBC ) );
 		return mcrypt_encrypt( MCRYPT_RIJNDAEL_128, $key, $data, MCRYPT_MODE_CBC, $iv );
 	}
@@ -1438,12 +1444,16 @@ class MEGARsa {
 		return $result;
 	}
 
-	private static function int2bin($num) {
+	public static function int2bin( $num ) {
+		if ( MEGACache::has_cache_file( __METHOD__, $num, $_file ) ) {
+			return MEGACache::load_cache_file( __METHOD__, $_file );
+		}
 		$result = '';
 		do {
-			$result .= chr(bcmod($num, 256));
-			$num = bcdiv($num, 256);
-		} while (bccomp($num, 0));
+			$result .= chr( bcmod( $num, 256 ) );
+			$num = bcdiv( $num, 256 );
+		} while ( bccomp( $num, 0 ) );
+		MEGACache::save_cache_file( __METHOD__, $_file, $result );
 		return $result;
 	}
 
@@ -1507,12 +1517,19 @@ class MEGAUtil {
 	}
 
 	// string to array of 32-bit words (big endian)
-	public static function str_to_a32($b) {
-		$padding = (((strlen($b) + 3) >> 2) * 4) - strlen($b);
-		if ($padding > 0) {
-			$b .= str_repeat("\0", $padding);
+	public static function str_to_a32( $b ) {
+		static $_static;
+		if ( isset( $_static[$b] ) ) {
+			return $_static[$b];
 		}
-		return array_values(unpack('N*', $b));
+		$_b = $b;
+		$padding = ( ( ( strlen( $b ) + 3 ) >> 2 ) * 4 ) - strlen( $b ) ;
+		if ( $padding > 0 ) {
+			$b .= str_repeat( "\0", $padding );
+		}
+		$_result = array_values( unpack( 'N*', $b ) );
+		$_static[$_b] = $_result;
+		return $_result;
 	}
 
 	public static function base64_to_a32($s) {
@@ -1537,18 +1554,22 @@ class MEGAUtil {
 	}
 
 	// binary string 0-padded to AES block size (str_to_ab)
-	public static function str_pad($b) {
-		$padding = 16 - ((strlen($b) - 1) & 15);
-		return $b . str_repeat("\0", $padding - 1);
+	public static function str_pad( $b ) {
+		$padding = 16 - ( ( strlen( $b ) - 1 ) & 15 );
+		return $b . str_repeat( "\0", $padding - 1 );
 	}
 
-	public static function mpi2b($s) {
-		$s = bin2hex(substr($s, 2));
-		$len = strlen($s);
-		$n = 0;
-		for ($i = 0; $i < $len; $i++) {
-			$n = bcadd($n, bcmul(hexdec($s[$i]), bcpow(16, $len - $i - 1)));
+	public static function mpi2b( $s ) {
+		if ( MEGACache::has_cache_file( __METHOD__, $s, $_file, $_ref ) ) {
+			return MEGACache::load_cache_file( __METHOD__, $_file );
 		}
+		$s = substr( $_ref, 4 );
+		$len = strlen( $s );
+		$n = 0;
+		for ( $i = 0; $i < $len; $i++ ) {
+			$n = bcadd( $n, bcmul( hexdec( $s[$i] ), bcpow( 16, $len - $i - 1 ) ) );
+		}
+		MEGACache::save_cache_file( __METHOD__, $_file, $n );
 		return $n;
 	}
 
@@ -1578,7 +1599,7 @@ class MEGACache {
 
 	public static function get_cache_folder( $method = null ) {
 
-		$folder = $_SERVER['DOCUMENT_ROOT'] . '/cache/classes/MEGA/MEGA/';
+		$folder = $_SERVER['DOCUMENT_ROOT'] . '/cache/classes/MEGA/MEGA/cache/';
 
 		if ( !isset( $method ) ) {
 			return $folder;
@@ -1594,9 +1615,9 @@ class MEGACache {
 
 	}
 
-	public static function get_cache_filename( $method = null, $vars = array() ) {
+	public static function get_cache_filename( $method = null, $vars = array(), &$ref = null ) {
 
-		if ( is_array( $vars ) && isset( $vars['_folder'] ) ) {
+		if ( isset( $vars['_folder'] ) ) {
 			unset( $vars['_folder'] );
 		}
 
@@ -1604,17 +1625,32 @@ class MEGACache {
 			case 'MEGACrypto::prepare_key':
 				$vars['a'] = isset( $vars['a'] ) ? $vars['a'] : ( is_array( $vars ) ? $vars : null );
 				if ( isset( $vars['a'] ) ) {
-					$result = implode( '-', $vars['a'] );
+					$filename = implode( '-', $vars['a'] );
 				}
 				break;
-			case 'stringhash':
-				$result = md5( serialize( $vars ) );
+			case 'MEGACrypto::stringhash':
+				#$vars['s'] . '-' . bin2hex( $vars['aeskey'] )
+				#$vars['s']
+				#md5( serialize( $vars ) )
+				$filename = $vars['s'];
+				break;
+			case 'MEGA::http_do_request':
+				$vars = isset( $vars['payload'] ) ? $vars['payload'] : $vars;
+				$filename = md5( $vars );
+			case 'MEGAUtil::mpi2b':
+				$vars = isset( $vars['s'] ) ? $vars['s'] : $vars;
+				$filename = md5( bin2hex( $vars ) );
+				$ref = $filename;
+				break;
+			case 'MEGARsa::int2bin':
+				$vars = isset( $vars['num'] ) ? $vars['num'] : $vars;
+				$filename = $vars;
 				break;
 		}
 
-		$result = isset( $result ) ? $result : md5( serialize( $vars ) );
+		$filename = isset( $filename ) ? $filename : md5( serialize( $vars ) );
 
-		return $result;
+		return $filename;
 
 	}
 
@@ -1671,10 +1707,10 @@ class MEGACache {
 
 	}
 
-	public static function has_cache_file( $method = null, $vars = array(), &$file = null ) {
+	public static function has_cache_file( $method = null, $vars = array(), &$file = null, &$ref = null ) {
 
 		$_folder = MEGACache::get_cache_folder( $method );
-		$_filename = MEGACache::get_cache_filename( $method, $vars );
+		$_filename = MEGACache::get_cache_filename( $method, $vars, $ref );
 		$_file = $_folder . $_filename . '.txt';
 
 		$file = $_file;
