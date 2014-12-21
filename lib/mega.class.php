@@ -140,7 +140,7 @@ class MEGA {
 
 		$this->apipath = isset( $apipath ) ? $apipath : 'https://' . self::$server . '/';
 		$this->use_ssl = (bool) $use_ssl;
-		$this->seqnof = rand( 0, PHP_INT_MAX );
+		$this->seqno = rand( 0, PHP_INT_MAX );
 
 	}
 
