@@ -88,10 +88,16 @@ class MEGA {
 	 */
 	public static function create_from_session( $session ) {
 
+		if ( is_string( $session ) ) {
+			if ( file_exists( $session ) ) {
+				$session = file_get_contents( $session );
+			}
+		}
+
 		$session = unserialize( base64_decode( chunk_split( $session ) ) );
 
 		if ( !$session || !is_array( $session ) ) {
-			return FALSE;
+			return false;
 		}
 
 		$client = new MEGA();
@@ -134,7 +140,7 @@ class MEGA {
 
 		$this->apipath = isset( $apipath ) ? $apipath : 'https://' . self::$server . '/';
 		$this->use_ssl = (bool) $use_ssl;
-		$this->seqno = rand( 0, PHP_INT_MAX );
+		$this->seqnof = rand( 0, PHP_INT_MAX );
 
 	}
 
@@ -445,34 +451,41 @@ class MEGA {
 	 *
 	 * @return array
 	 */
-	public function node_list($handle = NULL, $args = array()) {
-		$req = array('a' => 'f') + $args;
-		$req += array('c' => 1);
-		if ($handle) {
-			$req += array('n' => $handle);
+	public function node_list( $handle = NULL, $args = array() ) {
+
+		$req = array( 'a' => 'f' ) + $args;
+		$req += array( 'c' => 1 );
+
+		if ( $handle ) {
+			$req += array( 'n' => $handle );
 		}
 
-		$res = $this->api_req(array($req));
-		if (!$res) {
+		$res = $this->api_req( array( $req ) );
+
+		if ( !$res ) {
 			return FALSE;
 		}
 
-		$res = array_shift($res);
-		if (isset($res['f'])) {
+		$res = array_shift( $res );
+
+		if ( isset( $res['f'] ) ) {
 
 			$nodes = &$res['f'];
-			foreach ($nodes as $index => $node) {
-				if ($node['t'] == 0 || $node['t'] == 1) {
-					if (!empty($node['k'])) {
-						if ($key = $this->node_decrypt_key($node['k'])) {
-							$attr = MEGAUtil::base64_to_str($node['a']);
-							$nodes[$index]['a'] = MEGACrypto::dec_attr($attr, $key);
+
+			foreach ( $nodes as $index => $node ) {
+				if ( $node['t'] == 0 || $node['t'] == 1 ) {
+					if ( !empty( $node['k'] ) ) {
+						if ( $key = $this->node_decrypt_key( $node['k'] ) ) {
+							$attr = MEGAUtil::base64_to_str( $node['a'] );
+							$nodes[$index]['a'] = MEGACrypto::dec_attr( $attr, $key );
 						}
 					}
 				}
 			}
 		}
+
 		return $res;
+
 	}
 
 	/**
@@ -492,27 +505,32 @@ class MEGA {
 	 *     - n: File name.
 	 *   - g: Temporary download URL.
 	 */
-	public function node_file_info($node, $dl_url = FALSE, $args = array()) {
-		if (empty($node['h']) || empty($node['k'])) {
+	public function node_file_info( $node, $dl_url = false, $args = array() ) {
+
+		if ( empty( $node['h'] ) || empty( $node['k'] ) ) {
 			throw new InvalidArgumentException('Invalid file node handle');
 		}
 
-		$req = array('a' => 'g') + $args;
+		$req  = array('a' => 'g') + $args;
 		$req += array('n' => $node['h'], 'g' => (int) $dl_url, 'ssl' => (int) $this->use_ssl);
 
-		$res = $this->api_req(array($req));
-		if (!$res || !is_array($res)) {
-			return FALSE;
+		$res = $this->api_req( array( $req ) );
+
+		if ( !$res || !is_array( $res ) ) {
+			return false;
 		}
 
-		$res = array_shift($res);
-		if (isset($res['at'])) {
-			if ($key = $this->node_decrypt_key($node['k'])) {
-				$attr = MEGAUtil::base64_to_str($res['at']);
-				$res['at'] = MEGACrypto::dec_attr($attr, $key);
+		$res = array_shift( $res );
+
+		if ( isset( $res['at'] ) ) {
+			if ($key = $this->node_decrypt_key( $node['k'] ) ) {
+				$attr = MEGAUtil::base64_to_str( $res['at'] );
+				$res['at'] = MEGACrypto::dec_attr( $attr, $key );
 			}
 		}
+
 		return $res;
+
 	}
 
 	/**
@@ -668,50 +686,55 @@ class MEGA {
 	 * @see user.js::u_login()
 	 * @see user.js::api_getsid()
 	 */
-	public function user_login_session($email, $password, $args = array()) {
-		$this->log("Preparing user key...");
-		$pk = MEGACrypto::prepare_key_pw($password);
+	public function user_login_session( $email, $password, $args = array() ) {
+		$this->log( 'Preparing user key...' );
+		$pk = MEGACrypto::prepare_key_pw( $password );
 
-		$this->log("Preparing user hash...");
-		$uh = MEGACrypto::stringhash(strtolower($email), $pk);
+		$this->log( 'Preparing user hash...' );
+		$uh = MEGACrypto::stringhash( strtolower( $email ), $pk );
 
-		$req = array('a' => 'us') + $args;
-		$req += array('user' => $email, 'uh' => $uh);
+		$req = array( 'a' => 'us' ) + $args;
+		$req += array( 'user' => $email, 'uh' => $uh );
 
-		$res = $this->api_req(array($req));
-		if (!$res || !is_array($res)) {
+		$res = $this->api_req( array( $req ) );
+
+		if ( !$res || !is_array( $res ) ) {
 			return FALSE;
 		}
 
-		$res = array_shift($res);
+		$res = array_shift( $res );
+
+		if ( is_object( $res ) ) {
+			$res = (array) $res;
+		}
+
 		if (isset($res['k'])) {
 			// decrypt master key
-			$k = MEGAUtil::base64_to_a32($res['k']);
-			if (count($k) == 4) {
-				$k = MEGACrypto::decrypt_key($pk, $k);
-				if (isset($res['tsid'])) {
+			$k = MEGAUtil::base64_to_a32( $res['k'] );
+			if ( count( $k ) === 4 ) {
+				$k = MEGACrypto::decrypt_key( $pk, $k );
+				if ( isset( $res['tsid'] ) ) {
 					// @todo
-				}
-				else if (isset($res['csid'])) {
-					$privk = MEGACrypto::decrypt_key(MEGAUtil::a32_to_str($k), MEGAUtil::base64_to_a32($res['privk']));
-					$privk = MEGAUtil::a32_to_str($privk);
+				} else if ( isset( $res['csid'] ) ) {
+					$privk = MEGACrypto::decrypt_key( MEGAUtil::a32_to_str( $k ), MEGAUtil::base64_to_a32( $res['privk'] ) );
+					$privk = MEGAUtil::a32_to_str( $privk );
 
 					$rsa_privk = array();
 					// decompose private key
-					for ($i = 0; $i < 4; $i++) {
-						$l = ((ord($privk[0]) * 256 + ord($privk[1]) + 7) >> 3) + 2;
-						$rsa_privk[$i] = MEGAUtil::mpi2b(substr($privk, 0, $l));
-						$privk = substr($privk, $l);
+					for ( $i = 0; $i < 4; $i++ ) {
+						$l = ( ( ord( $privk[0] ) * 256 + ord( $privk[1] ) + 7 ) >> 3 ) + 2;
+						$rsa_privk[$i] = MEGAUtil::mpi2b( substr( $privk, 0, $l ) );
+						$privk = substr( $privk, $l );
 					}
 
 					$t = MEGAUtil::base64urldecode($res['csid']);
 					$t = MEGAUtil::mpi2b($t);
 
-					$sid = MEGARsa::rsa_decrypt($t, $rsa_privk[0], $rsa_privk[1], $rsa_privk[2]);
-					$sid = MEGAUtil::base64urlencode(substr(strrev($sid), 0, 43));
+					$sid = MEGARsa::rsa_decrypt( $t, $rsa_privk[0], $rsa_privk[1], $rsa_privk[2] );
+					$sid = MEGAUtil::base64urlencode( substr( strrev( $sid ), 0, 43 ) );
 
 					// check format
-					if ($i == 4 && strlen($privk) < 16) {
+					if ( $i == 4 && strlen( $privk ) < 16 ) {
 						// @@@ check remaining padding for added early wrong password detection likelihood
 						$r = array(
 							$k,
@@ -719,7 +742,7 @@ class MEGA {
 							$rsa_privk,
 						);
 						$this->u_k = $k;
-						$this->u_k_aes = MEGAUtil::a32_to_str($this->u_k);
+						$this->u_k_aes = MEGAUtil::a32_to_str( $this->u_k );
 						$this->u_sid = $sid;
 						$this->u_privk = $rsa_privk;
 						return $r;
@@ -914,6 +937,7 @@ class MEGA {
 	 *
 	 */
 	protected function http_do_request($url, $payload) {
+		return '[{"csid":"CABHCuXgcHHXVhEyBHD5_mqECIYmmX-OQ8Me2KjDLyf2PtrREuId4Cd8B-KjflOpQ80eThGRM4kabnH4ut2l5AMtLk4MMMpsEIT_yxzeXqIw4uruV4lRajDEBOAIzbXm54B7loLK0CP1X1jlESlHmF0iVPpky12_IbtwXx48O1tf2gvzWrGOsKSmNclM6HQ_AIIYwvYaXHkuStqtVT4zFsay0Q33JmZmLJ90sfGgBF3SCnCwGuSTcJvAcx1OPIjoy5QPrNw_6K_vAiWR96rntdAa71DGz7-NfCElayCWQWI2psTWV-NASJ0KNFrGtukVTKQCaCQFIGg7IDVtexQyMEGl","privk":"ZRy0Z7TQ-v9Djy_degUWR7UM2cmuQBIOaDOmMQXloC_MdyeVxtl9AQflEI6VdWd1aMN3q8YBNv4NRoNpWXYL5tJ0e1qGfcVAcoh__U4ge87osLg1qyj9_CiTpwX_810oPSS6M8WpwT1EEVa1e7kO4QTCMgAx4EpfttfpM6udey9xQH1RQmBq2diNTz97nII7Vg1k0T_8oW4RCoVKlf8VgDP97EeM5WEmNPFcrpJVFDownfjttw2MdrVHTVGQiI1KhG-NJ7pDzlvnh13q4Keo8BhzJdo0Cos2umN4Ld8LpG-0ZJ5Htgn-9roYQsoXpG39LzRsLLi9ipqambL47zQx9RFFjeh6HmGYgtCdxQY606xOax1YOaS0G02S2EBpIcgKa8x6Dv0m3b0BndNkvWusNLyctbxXVTzI0B9ocWTM7HDQdSQZXJZqOIMOYpeQ12gDzixPovkPdIEg5jQzNvPJGen6E37ZTlOzIArZeud8GDT8f7lR0SCGudm1sMklIQCH8SKgs3g1Bd3bulW5iPQu16qCjLwZw0yf6wf6GHqp7LdoIP-vgCp8d0z-1NCiIOykcik8j2jD6J5emQ-7pm4Jva8atrWR1Lbcg96z6L3mAjrgzHULuwORibI77Nhu_GYWDuiveorJ0YOWGhV6jdN1GPqQVHSn9EzUTTZguuKqiR3etlADRah9h90kSCHw5ERq8SAHTNRww_bai40vL_w2e-7o8x_vcJRx_qaMLWLbeoUvmqj1odl19KGxy7Yukte-GDddZR7OYwh6k81o9DvHfDclBmEqO8Cfu0Bk2sqGQcgEcAIG7vS6xcDuwn7Re6_d7d3FcbNgErq148TnvSAQQG300PsuZlPqfJu-KzD5tXc","k":"oe49Ibkwm2EXRatUKOPTAA","u":"gTxFhlOd_LQ"}]';
 		//$url = ($this->ssl ? 'https' : 'http') . '://' . $this->endpoint . '/cs?id=' . $this->sequence_number;
 
 		$curl_handle = curl_init();
@@ -1096,49 +1120,58 @@ class MEGACrypto {
 	 * @return string
 	 *   The AES user password key.
 	 */
-	public static function prepare_key($a) {
-		$pkey = MEGAUtil::a32_to_str(array(0x93C467E3, 0x7DB0C7A4, 0xD1BE3F81, 0x0152CB56));
-		$total = count($a);
-		for ($r = 65536; $r--; ) {
-			for ($j = 0; $j < $total; $j += 4) {
-				$key = array(0, 0, 0, 0);
-				for ($i = 0; $i < 4; $i++) {
-					if ($i + $j < $total) {
+	public static function prepare_key( $a ) {
+		if ( MEGACache::has_cache_file( __METHOD__, get_defined_vars(), $_file ) ) {
+			return MEGACache::load_cache_file( __METHOD__, $_file );
+		}
+		$pkey = MEGAUtil::a32_to_str( array( 0x93C467E3, 0x7DB0C7A4, 0xD1BE3F81, 0x0152CB56 ) );
+		$total = count( $a );
+		for ( $r = 65536; $r--; ) {
+			for ( $j = 0; $j < $total; $j += 4 ) {
+				$key = array( 0, 0, 0, 0 );
+				for ( $i = 0; $i < 4; $i++ ) {
+					if ( $i + $j < $total ) {
 						$key[$i] = $a[$i + $j];
 					}
 				}
-				$pkey = self::encrypt_aes_cbc(MEGAUtil::a32_to_str($key), $pkey);
+				$pkey = self::encrypt_aes_cbc( MEGAUtil::a32_to_str( $key ), $pkey );
 			}
 		}
+		MEGACache::save_cache_file( __METHOD__, $_file, $pkey );
 		return $pkey;
 	}
 
 	// prepare_key with string input
-	public static function prepare_key_pw($password) {
-		return self::prepare_key(MEGAUtil::str_to_a32($password));
+	public static function prepare_key_pw( $password ) {
+		return self::prepare_key( MEGAUtil::str_to_a32( $password ) );
 	}
 
-	public static function stringhash($s, $aeskey) {
-		$s32 = MEGAUtil::str_to_a32($s);
-		$h32 = array(0, 0, 0, 0);
+	public static function stringhash( $s, $aeskey ) {
+		if ( MEGACache::has_cache_file( __METHOD__, get_defined_vars(), $_file ) ) {
+			return MEGACache::load_cache_file( __METHOD__, $_file );
+		}
+		$s32 = MEGAUtil::str_to_a32( $s );
+		$h32 = array( 0, 0, 0, 0 );
 
-		for ($i = 0; $i < count($s32); $i++) {
+		for ( $i = 0; $i < count( $s32 ); $i++ ) {
 			$h32[$i & 3] ^= $s32[$i];
 		}
 
-		$h32 = MEGAUtil::a32_to_str($h32);
-		for ($i = 16384; $i--;) {
-			$h32 = self::encrypt_aes_cbc($aeskey, $h32);
+		$h32 = MEGAUtil::a32_to_str( $h32 );
+		for ( $i = 16384; $i--; ) {
+			$h32 = self::encrypt_aes_cbc( $aeskey, $h32 );
 		}
 
-		$h32 = MEGAUtil::str_to_a32($h32);
-		return MEGAUtil::a32_to_base64(array($h32[0], $h32[2]));
+		$h32 = MEGAUtil::str_to_a32( $h32 );
+		$_result = MEGAUtil::a32_to_base64( array( $h32[0], $h32[2] ) );
+		MEGACache::save_cache_file( __METHOD__, $_file, $_result );
+		return $_result;
 	}
 
 	// AES encrypt in CBC mode (zero IV)
 	public static function encrypt_aes_cbc($key, $data) {
-		$iv = str_repeat("\0", mcrypt_get_iv_size(MCRYPT_RIJNDAEL_128, MCRYPT_MODE_CBC));
-		return mcrypt_encrypt(MCRYPT_RIJNDAEL_128, $key, $data, MCRYPT_MODE_CBC, $iv);
+		$iv = str_repeat( "\0", mcrypt_get_iv_size( MCRYPT_RIJNDAEL_128, MCRYPT_MODE_CBC ) );
+		return mcrypt_encrypt( MCRYPT_RIJNDAEL_128, $key, $data, MCRYPT_MODE_CBC, $iv );
 	}
 
 	// AES decrypt in CBC mode (zero IV)
@@ -1158,13 +1191,13 @@ class MEGACrypto {
 	}
 
 	// encrypt 4- or 8-element 32-bit integer array
-	public static function encrypt_key($key, $a) {
-		if (count($a) == 4) {
-			return self::encrypt_aes_cbc_a32($key, $a);
+	public static function encrypt_key( $key, $a ) {
+		if ( count( $a ) === 4 ) {
+			return self::encrypt_aes_cbc_a32( $key, $a );
 		}
 		$x = array();
-		for ($i = 0; $i < count($a); $i += 4) {
-			$x[] = self::encrypt_aes_cbc_a32($key, array($a[$i], $a[$i + 1], $a[$i + 2], $a[$i + 3]));
+		for ( $i = 0; $i < count( $a ); $i += 4 ) {
+			$x = array_merge( $x, self::encrypt_aes_cbc_a32( $key, array( $a[$i], $a[$i + 1], $a[$i + 2], $a[$i + 3] ) ) );
 		}
 		return $x;
 	}
@@ -1219,6 +1252,123 @@ class MEGACrypto {
 		}
 		return $attr;
 	}
+
+	/**
+	 * My functions (specific use)
+	 */
+
+	/**
+	 * [get_sid_from_response description]
+	 * @param  string|array|object $response Response of Http Request made by function "http_do_request"
+	 * @param  string $password Password
+	 * @return string SID
+	 */
+	public static function get_sid_from_response( $response, $password, &$ref = array() ) {
+
+		$res = null;
+		$ref = array();
+
+		/**
+		 * Force $res like a array( 0 => new StdClass() )
+		 */
+
+		if ( is_string( $response ) && substr( $response, 0, 3 ) === '[{"' ) {
+			if ( ( $res = json_decode( $response ) ) === false || $res === null ) {
+				return false;
+			}
+		} elseif ( is_array( $response ) ) {
+			if ( isset( $response[0] ) ) {
+				if ( is_array( $response[0] ) ) {
+					if ( !isset( $response[0]['k'] ) ) {
+						return false;
+					}
+					$res = array( 0 => (object) $response[0] );
+				} elseif ( is_object( $response[0] ) ) {
+					if ( !isset( $response[0]->k ) ) {
+						return false;
+					}
+					$res = $response;
+				}
+			} else {
+				if ( !isset( $response['k'] ) ) {
+					return false;
+				}
+				$res = array( 0 => (object) $response );
+			}
+		} elseif ( is_object( $response ) ) {
+			if ( !isset( $response->k ) ) {
+				return false;
+			}
+			$res = array( 0 => (object) $response );
+		}
+
+		if ( !isset( $res ) ) {
+			return false;
+		}
+
+		$res = array_shift( $res );
+
+		if ( isset( $res->tsid ) ) {
+			return false;
+		}
+
+		if ( !isset( $res->csid ) ) {
+			return false;
+		}
+
+		if ( !isset( $res->privk ) ) {
+			return false;
+		}
+
+		$pk = MEGACrypto::prepare_key_pw( $password );
+
+		$k = MEGAUtil::base64_to_a32( $res->k );
+		$k = MEGACrypto::decrypt_key( $pk, $k );
+
+		$privk = MEGACrypto::decrypt_key( MEGAUtil::a32_to_str( $k ), MEGAUtil::base64_to_a32( $res->privk ) );
+		$privk = MEGAUtil::a32_to_str( $privk );
+
+		$rsa_privk = array();
+
+		for ( $i = 0; $i < 4; $i++ ) {
+			$l = ( ( ord( $privk[0] ) * 256 + ord( $privk[1] ) + 7 ) >> 3 ) + 2;
+			$rsa_privk[$i] = MEGAUtil::mpi2b( substr( $privk, 0, $l ) );
+			$privk = substr( $privk, $l );
+		}
+
+		$t = MEGAUtil::base64urldecode( $res->csid );
+		$t = MEGAUtil::mpi2b( $t );
+
+		$sid = MEGARsa::rsa_decrypt( $t, $rsa_privk[0], $rsa_privk[1], $rsa_privk[2] );
+		$sid = MEGAUtil::base64urlencode( substr( strrev( $sid ), 0, 43 ) );
+
+		if ( $i !== 4 || strlen( $privk ) >= 16 ) {
+			return false;
+		}
+
+		$r = array(
+			$k,
+			$sid,
+			$rsa_privk,
+		);
+
+		$u_k = $k;
+		$u_k_aes = MEGAUtil::a32_to_str( $u_k );
+		$u_sid = $sid;
+		$u_privk = $rsa_privk;
+
+		$ref = array(
+			'u_k' => $u_k,
+			'u_k_aes' => $u_k_aes,
+			'u_sid' => $u_sid,
+			'u_privk' => $u_privk,
+		);
+
+		return strlen( $sid ) === 58 || $sid !== '' ? $sid : false;
+
+	}
+
+
 }
 
 /**
@@ -1227,34 +1377,64 @@ class MEGACrypto {
  */
 class MEGARsa {
 
-	public static function rsa_decrypt($enc_data, $p, $q, $d) {
-		$enc_data = self::int2bin($enc_data);
+	public static function rsa_decrypt( $enc_data, $p, $q, $d ) {
+
+		if ( MEGACache::has_cache_file( __METHOD__, get_defined_vars(), $_file ) ) {
+			return MEGACache::load_cache_file( __METHOD__, $_file );
+		}
+
+		$enc_data = self::int2bin( $enc_data );
 		$exp = $d;
-		$modulus = bcmul($p, $q);
-		$data_len = strlen($enc_data);
-		$chunk_len = self::bitLen($modulus) - 1;
-		$block_len = (int) ceil($chunk_len / 8);
+		$modulus = bcmul( $p, $q );
+		$data_len = strlen( $enc_data );
+		$chunk_len = self::bitLen( $modulus ) - 1;
+		$block_len = (int) ceil( $chunk_len / 8 );
 		$curr_pos = 0;
 		$bit_pos = 0;
 		$plain_data = 0;
 
-		while ($curr_pos < $data_len) {
-			$tmp = self::bin2int(substr($enc_data, $curr_pos, $block_len));
-			$tmp = bcpowmod($tmp, $exp, $modulus);
-			$plain_data = self::bitOr($plain_data, $tmp, $bit_pos);
+		/**
+		 * Prevents error
+		 */
+		$has_error = false;
+		$counter = 0;
+
+		while ( $curr_pos < $data_len ) {
+			$tmp = self::bin2int( substr( $enc_data, $curr_pos, $block_len ) );
+			if ( $tmp === 0 ) {
+				$counter++;
+			}
+			$tmp = bcpowmod( $tmp, $exp, $modulus );
+			$plain_data = self::bitOr( $plain_data, $tmp, $bit_pos );
 			$bit_pos += $chunk_len;
 			$curr_pos += $block_len;
+			if ( $counter === 20 ) {
+				$has_error = true;
+				break;
+			}
 		}
 
-		return self::int2bin($plain_data);
+		if ( $has_error ) {
+			return false;
+		}
+
+		$_result = self::int2bin( $plain_data );
+
+		MEGACache::save_cache_file( __METHOD__, $_file, $_result );
+
+		return $_result;
+
 	}
 
 	private static function bin2int($str) {
 		$result = 0;
-		$n = strlen($str);
+		$n = strlen( $str );
+		if ( $n === 0 ) {
+			return $result;
+		}
 		do {
-			$result = bcadd(bcmul($result, 256), ord($str[--$n]));
-		} while ($n > 0);
+			$result = bcadd( bcmul( $result, 256 ), ord( $str[--$n] ) );
+		} while ( $n > 0 );
 		return $result;
 	}
 
@@ -1306,9 +1486,9 @@ class MEGAUtil {
 
 	// unsubstitute standard base64 special characters, restore padding.
 	public static function base64urldecode($data) {
-		$data .= substr('==', (2 - strlen($data) * 3) & 3);
-		$data = str_replace(array('-', '_', ','), array('+', '/', ''), $data);
-		return base64_decode($data);
+		$data .= substr( '==', ( 2 - strlen( $data ) * 3 ) & 3 );
+		$data = str_replace( array( '-', '_', ',' ), array( '+', '/', '' ), $data );
+		return base64_decode( $data );
 	}
 
 	// substitute standard base64 special characters to prevent JSON escaping, remove padding
@@ -1322,8 +1502,8 @@ class MEGAUtil {
 		return call_user_func_array('pack', array_merge(array('N*'), $a));
 	}
 
-	public static function a32_to_base64($a) {
-		return self::base64urlencode(self::a32_to_str($a));
+	public static function a32_to_base64( $a ) {
+		return self::base64urlencode( self::a32_to_str( $a ) );
 	}
 
 	// string to array of 32-bit words (big endian)
@@ -1336,7 +1516,7 @@ class MEGAUtil {
 	}
 
 	public static function base64_to_a32($s) {
-		return self::str_to_a32(self::base64urldecode($s));
+		return self::str_to_a32( self::base64urldecode( $s ) );
 	}
 
 	// string to binary string (ab_to_base64)
@@ -1345,8 +1525,8 @@ class MEGAUtil {
 	}
 
 	// binary string to string, 0-padded to AES block size (base64_to_ab)
-	public static function base64_to_str($a) {
-		return self::str_pad(self::base64urldecode($a));
+	public static function base64_to_str( $a ) {
+		return self::str_pad( self::base64urldecode( $a ) );
 	}
 
 	// binary string depadding (ab_to_str_depad)
@@ -1393,3 +1573,116 @@ class MEGAUtil {
 function uniord($u) {
 	return hexdec(bin2hex($u));
 }
+
+class MEGACache {
+
+	public static function get_cache_folder( $method = null ) {
+
+		$folder = $_SERVER['DOCUMENT_ROOT'] . '/cache/classes/MEGA/MEGA/';
+
+		if ( !isset( $method ) ) {
+			return $folder;
+		}
+
+		$parts = explode( '::', $method );
+
+		if ( count( $parts ) === 2 ) {
+			return sprintf( $_SERVER['DOCUMENT_ROOT'] . '/cache/classes/MEGA/%s/%s/', $parts[0], $parts[1] );
+		}
+
+		return $folder;
+
+	}
+
+	public static function get_cache_filename( $method = null, $vars = array() ) {
+
+		if ( is_array( $vars ) && isset( $vars['_folder'] ) ) {
+			unset( $vars['_folder'] );
+		}
+
+		switch ( $method ) {
+			case 'MEGACrypto::prepare_key':
+				$vars['a'] = isset( $vars['a'] ) ? $vars['a'] : ( is_array( $vars ) ? $vars : null );
+				if ( isset( $vars['a'] ) ) {
+					$result = implode( '-', $vars['a'] );
+				}
+				break;
+			case 'stringhash':
+				$result = md5( serialize( $vars ) );
+				break;
+		}
+
+		$result = isset( $result ) ? $result : md5( serialize( $vars ) );
+
+		return $result;
+
+	}
+
+	public static function save_cache_file( $method = null, $file, $data ) {
+
+		$folder = dirname( $file ) . DIRECTORY_SEPARATOR;
+
+		if ( !is_dir( $folder ) && !mkdir( $folder, 0755, true ) ) {
+			return false;
+		}
+
+		$file = $folder . basename( $file );
+
+		switch ( $method ) {
+			case 'MEGACrypto::prepare_key':
+				$data = $data;
+				break;
+			default:
+				$data = $data;
+				break;
+		}
+
+		if ( file_put_contents( $file, $data ) === false ) {
+			return false;
+		}
+
+		return true;
+
+	}
+
+	public static function load_cache_file( $method = null, $file ) {
+
+		$_method = $method;
+		$_file = $file;
+
+		if ( !isset( $method ) ) {
+			$method = $file;
+		} elseif ( strpos( $file, '::' ) !== false ) {
+			$method = $_file;
+			$file = $_method;
+		}
+
+		if ( !is_file( $file ) ) {
+			return false;
+		}
+
+		switch ( $method ) {
+			case 'MEGACrypto::prepare_key':
+				return file_get_contents( $_file );
+				break;
+		}
+
+		return file_get_contents( $_file );
+
+	}
+
+	public static function has_cache_file( $method = null, $vars = array(), &$file = null ) {
+
+		$_folder = MEGACache::get_cache_folder( $method );
+		$_filename = MEGACache::get_cache_filename( $method, $vars );
+		$_file = $_folder . $_filename . '.txt';
+
+		$file = $_file;
+
+		return is_file( $_file );
+
+	}
+
+}
+
+?>
