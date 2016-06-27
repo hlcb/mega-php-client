@@ -583,23 +583,27 @@ class MEGA {
         $path  = !empty( $dir_path ) ? rtrim( $dir_path, '/\\' ) . '/' : '';
         $path .= !empty( $filename ) ? $filename : $info['at']['n'];
 
-        $stream = fopen( $path, 'wb');
+        if ( is_dir( dirname( $path ) ) || mkdir( dirname( $path ), 0755, true ) ) {
 
-        try {
+            $stream = fopen( $path, 'wb');
 
-            $this->log( "Downloading {$info['at']['n']} (size: {$info['s']}), url = {$info['g']}" );
-            $this->file_download_url( $info['g'], $info['s'], MEGAUtil::base64_to_a32( $key ), $stream );
+            try {
 
-        } catch ( MEGAException $e ) {
+                $this->log( "Downloading {$info['at']['n']} (size: {$info['s']}), url = {$info['g']}" );
+                $this->file_download_url( $info['g'], $info['s'], MEGAUtil::base64_to_a32( $key ), $stream );
+
+            } catch ( MEGAException $e ) {
+
+                fclose( $stream );
+                throw $e;
+
+            }
 
             fclose( $stream );
-            throw $e;
+
+            return $path;
 
         }
-
-        fclose( $stream );
-
-        return $path;
 
     }
 
