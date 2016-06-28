@@ -1228,6 +1228,12 @@ class MEGA {
             $content = curl_exec($curl_handle);
             $info = curl_getinfo( $curl_handle );
 
+            if ( !$content ) {
+                if ( $info['http_code'] === 500 ) {
+                    $this->error = 'HTTP/1.1 500 Internal Server Error';
+                }
+            }
+
             if ( empty( $info['redirect_url'] ) ) {
                 break;
             }
