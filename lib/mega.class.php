@@ -663,7 +663,8 @@ class MEGA {
                     if ( !empty( $node['k'] ) ) {
                         if ( $key = $this->node_decrypt_key( $node['k'] ) ) {
                             $attr = MEGAUtil::base64_to_str( $node['a'] );
-                            $nodes[$index]['a'] = MEGACrypto::dec_attr( $attr, $key );
+                            $nodes[$index]['at'] = MEGACrypto::dec_attr( $attr, $key );
+                            $nodes[$index]['key'] = MEGAUtil::a32_to_base64( $key );
                         }
                     }
                 }
@@ -1069,7 +1070,11 @@ class MEGA {
         mcrypt_generic_init($td, $aeskey, $iv);
 
         $chunks = $this->get_chunks($size);
-        $stream = $this->http_open_stream($url);
+
+        if ( !( $stream = $this->http_open_stream($url) ) ) {
+            $this->error = 'FOPEN';
+            return false;
+        }
 
         // Fetch response. Due to PHP bugs like http://bugs.php.net/bug.php?id=43782
         // and http://bugs.php.net/bug.php?id=46049 we can't rely on feof(), but
@@ -1140,17 +1145,23 @@ class MEGA {
     }
 
     protected function node_decrypt_key($k) {
-        static $cache = array();
-        if (!isset($cache[$k])) {
-            $keys = explode('/', $k);
+        if ( is_string( $k ) && strlen( $k ) === 55 && $k[11] === ':' ) {
+            $key = substr( $k, 12 );
+            $key = MEGAUtil::base64_to_a32( $key );
+            $key = MEGACrypto::decrypt_key( $this->u_k_aes, $key );
+            return $key;
+        } else {
+            var_dump( __METHOD__ );
+            var_dump( __LINE__ );
+            exit();
+            $keys = explode( '/', $k );
             list (, $key) = explode(':', $keys[0]);
             if (!empty($key)) {
                 $key = MEGAUtil::base64_to_a32($key);
                 $key = MEGACrypto::decrypt_key($this->u_k_aes, $key);
-                $cache[$k] = $key;
+                return $key;
             }
         }
-        return $cache[$k];
     }
 
     protected function api_req($req, $params = array()) {
@@ -1198,7 +1209,7 @@ class MEGA {
 
         while ( true ) {
 
-            if ( $redirects >= 15 ) {
+            if ( $redirects >= 5 ) {
                 if ( is_resource( $curl_handle ) ) {
                     curl_close( $curl_handle );
                 }
